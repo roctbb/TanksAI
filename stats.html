@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en" style="height: 100%;">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="static/jquery-3.1.0.min.js"></script>
+    <link rel="stylesheet" href="static/bootstrap.min.css">
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="static/bootstrap-theme.min.css">
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="static/bootstrap.min.js"></script>
+    <script>
+        var timerId = setTimeout(function () {
+            location.href = '/stats';
+        }, 5000);
+
+
+    </script>
+</head>
+<body>
+<table cellspacing="0" class="table">
+    <tr>
+        <th>#</th>
+        <th>Автор</th>
+        <th>HP</th>
+        <th>Качество</th>
+        <th>Действия</th>
+        <th>Попаданий</th>
+        <th>Время жизни</th>
+        <th>Монеты</th>
+        <th>Счет</th>
+    </tr>
+    {% for i in range(len(gamestate)) %}
+    <tr>
+        <td>{{i}}</td>
+        <td>{{gamestate[i]['name']}}</td>
+        <td>{{gamestate[i]['hp']}}</td>
+        <td><span class="label {{gamestate[i]['quality_class']}}" title="{{gamestate[i]['lastCrash']}}">{{gamestate[i]['quality']}}</span>
+        </td>
+        <td>{{gamestate[i]['steps']}} ST/{{gamestate[i]['shots']}} SH</td>
+        <td>{{gamestate[i]['kills']}}</td>
+        <td>{{gamestate[i]['lifetime']}}</td>
+        <td>{{gamestate[i]['coins']}}</td>
+        <td>{{gamestate[i]['score']}}</td>
+    </tr>
+    {% end %}
+</table>
+</body>
+</html>
