@@ -129,7 +129,9 @@ def make_testing():
         c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x,y])
     conn.commit()
 
-    print(sys.path.append(os.path.dirname(__file__) + "/bots/"))
+    print(os.path.dirname(__file__) + "/bots/")
+
+    sys.path.append(os.path.dirname(__file__) + "/bots/")
     while lifeplayers>int(settings['game_stop']):
         if int(settings['stop_ticks'])!=0 and ticks>int(settings['stop_ticks']):
             break
