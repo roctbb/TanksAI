@@ -6,7 +6,7 @@ import os
 import importlib as imp
 from multiprocessing import Process, Queue, Manager
 
-os.chdir(os.path.dirname(os.path.realpath(__file__)))
+#os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 def wrapper(func, x, y, field, rv):
     try:
