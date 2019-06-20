@@ -128,9 +128,6 @@ def make_testing():
         healthMap[x][y] = 1
         c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x,y])
     conn.commit()
-
-    print("./bots/")
-
     sys.path.append("./bots/")
     while lifeplayers>int(settings['game_stop']):
         if int(settings['stop_ticks'])!=0 and ticks>int(settings['stop_ticks']):
