@@ -8,7 +8,7 @@ import json
 import random
 import string
 
-os.chdir(os.path.dirname(os.path.realpath(__file__)))
+#os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 from time import gmtime, strftime
 def getKey(N):
@@ -217,7 +217,7 @@ class StateHandler(tornado.web.RequestHandler):
 
 class Application(tornado.web.Application):
     def __init__(self):
-        handlers = [(r"/", MainHandler),(r"/register", RegisterHandler),(r"/game", GameHandler),(r"/state", StateHandler), (r"/stats", StatsHandler),(r'/static/(.*)', tornado.web.StaticFileHandler, {'path': os.path.dirname(__file__)+"/static/"}),]
+        handlers = [(r"/", MainHandler),(r"/register", RegisterHandler),(r"/game", GameHandler),(r"/state", StateHandler), (r"/stats", StatsHandler),(r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "./static/"}),]
         settings = {}
         super(Application, self).__init__(handlers, **settings)
 
