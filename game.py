@@ -170,7 +170,7 @@ def make_testing():
 
             c.execute("SELECT code FROM players WHERE key = ?", [player])
             code = c.fetchone()
-            code = code[0].decode('utf8').replace('exit()', '')
+            code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
             output_file = open("./bots/" + player + ".py", 'w')
             output_file.write(code)
             output_file.close()
