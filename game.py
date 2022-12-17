@@ -4,6 +4,7 @@ import time
 import sys
 import os
 import importlib as imp
+import traceback
 from multiprocessing import Process, Queue, Manager
 
 #os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -14,7 +15,7 @@ def wrapper(func, x, y, field, rv):
         rv['choice']= result
     except Exception as e:
         rv['choice'] = "crash"
-        rv['error'] = str(e)
+        rv['error'] = str(e) + " " + traceback.format_exc()
 
 def make_testing():
     #работа с m файлами
