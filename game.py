@@ -140,16 +140,18 @@ def make_testing():
         historyMap = [[0 for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
 
         if random.randint(1,3)==1:
-            x = random.randint(0, int(settings["width"]) - 1)
-            y = random.randint(0, int(settings["height"]) - 1)
-            cc = 0
-            while mainMap[x][y] != '.' and cc<10:
+            for i in range(3):
                 x = random.randint(0, int(settings["width"]) - 1)
                 y = random.randint(0, int(settings["height"]) - 1)
-                cc+=1
-            mainMap[x][y] = '@'
-            healthMap[x][y] = 1
-            c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x, y])
+                cc = 0
+                while mainMap[x][y] != '.' and cc<10:
+                    x = random.randint(0, int(settings["width"]) - 1)
+                    y = random.randint(0, int(settings["height"]) - 1)
+                    cc+=1
+                if cc < 10:
+                    mainMap[x][y] = '@'
+                    healthMap[x][y] = 1
+                    c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x, y])
         conn.commit()
 
         for player in players:
