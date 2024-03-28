@@ -139,7 +139,7 @@ def make_testing():
 
         historyMap = [[0 for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
 
-        if random.randint(1,5)==1:
+        if random.randint(1,3)==1:
             x = random.randint(0, int(settings["width"]) - 1)
             y = random.randint(0, int(settings["height"]) - 1)
             cc = 0
