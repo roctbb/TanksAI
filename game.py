@@ -174,6 +174,7 @@ def make_testing():
             code = c.fetchone()
             try:
                 code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
+                print(code)
             except Exception as e:
                 print("Error with", player, ": ", e)
                 try:
