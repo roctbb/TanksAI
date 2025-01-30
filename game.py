@@ -172,7 +172,15 @@ def make_testing():
 
             c.execute("SELECT code FROM players WHERE key = ?", [player])
             code = c.fetchone()
-            code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
+            try:
+                code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
+            except Exception as e:
+                print("Error with", player, ": ", e)
+                try:
+                    code = code[0].replace('exit()', '').replace('telebot', '')
+                except Exception as e:
+                    print("Agein error with", player, ": ", e)
+                    code = ""
             output_file = open("./bots/" + player + ".py", 'w')
             output_file.write(code)
             output_file.close()
