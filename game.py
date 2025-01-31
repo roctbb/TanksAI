@@ -60,9 +60,10 @@ def is_code_safe(code):
         # Проверяем код на безопасность
         SafeCodeChecker().visit(tree)
         return True
-    except ValueError as e:
+    except Exception as e:
         print(f"Ошибка: {e}")
         return False
+        
 
 def wrapper(func, x, y, field, rv):
     try:
