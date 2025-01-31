@@ -65,10 +65,6 @@ def is_code_safe(code):
         return False
 
 def wrapper(func, x, y, field, rv):
-    if not is_code_safe(func.__code__.co_code):
-        rv['choice'] = "crash"
-        rv['error'] = "Код функции содержит опасные операции"
-        return
     try:
         result = func(x,y,field)
         rv['choice']= result
@@ -241,6 +237,8 @@ def make_testing():
                 except Exception as e:
                     print("Agein error with", player, ": ", e)
                     code = ""
+            if not is_code_safe(code):
+                code = ""
             output_file = open("./bots/" + player + ".py", 'w')
             output_file.write(code)
             output_file.close()
