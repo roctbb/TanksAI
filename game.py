@@ -6,10 +6,69 @@ import os
 import importlib as imp
 import traceback
 from multiprocessing import Process, Queue, Manager
+import ast
 
-#os.chdir(os.path.dirname(os.path.realpath(__file__)))
+def is_code_safe(code):
+    # Запрещенные узлы AST
+    forbidden = {
+        # Запрещенные функции
+        'eval': "Использование eval запрещено",
+        'exec': "Использование exec запрещено",
+        'open': "Использование open запрещено",
+        # Запрещенные модули
+        'os': "Импорт модуля os запрещен",
+        'subprocess': "Использование subprocess запрещено",
+        'socket': "Использование socket запрещено",
+        'requests': "Использование requests запрещено",
+        'http.client': "Использование http.client запрещено",
+        'urllib': "Использование urllib запрещено",
+    }
+
+    class SafeCodeChecker(ast.NodeVisitor):
+        def visit_Call(self, node):
+            # Проверяем вызовы функций
+            if isinstance(node.func, ast.Name) and node.func.id in forbidden:
+                raise ValueError(forbidden[node.func.id])
+            self.generic_visit(node)
+
+        def visit_Import(self, node):
+            # Проверяем импорты модулей
+            for alias in node.names:
+                if alias.name in forbidden:
+                    raise ValueError(forbidden[alias.name])
+            self.generic_visit(node)
+
+        def visit_ImportFrom(self, node):
+            # Проверяем импорты из модулей
+            if node.module in forbidden:
+                raise ValueError(forbidden[node.module])
+            for alias in node.names:
+                if f"{node.module}.{alias.name}" in forbidden:
+                    raise ValueError(forbidden[f"{node.module}.{alias.name}"])
+            self.generic_visit(node)
+
+        def visit_Expr(self, node):
+            # Проверяем выражения, такие как eval и exec
+            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                if node.value.func.id in ['eval', 'exec']:
+                    raise ValueError(forbidden[node.value.func.id])
+            self.generic_visit(node)
+
+    try:
+        # Парсим код в AST
+        tree = ast.parse(code)
+        # Проверяем код на безопасность
+        SafeCodeChecker().visit(tree)
+        return True
+    except ValueError as e:
+        print(f"Ошибка: {e}")
+        return False
 
 def wrapper(func, x, y, field, rv):
+    if not is_code_safe(func.__code__.co_code):
+        rv['choice'] = "crash"
+        rv['error'] = "Код функции содержит опасные операции"
+        return
     try:
         result = func(x,y,field)
         rv['choice']= result
