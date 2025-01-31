@@ -229,7 +229,6 @@ def make_testing():
             code = c.fetchone()
             try:
                 code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
-                print(code)
             except Exception as e:
                 print("Error with", player, ": ", e)
                 try:
@@ -239,6 +238,7 @@ def make_testing():
                     code = ""
             if not is_code_safe(code):
                 code = ""
+                print(code)
             output_file = open("./bots/" + player + ".py", 'w')
             output_file.write(code)
             output_file.close()
