@@ -33,7 +33,7 @@
     {% for i in range(len(gamestate)) %}
     <tr>
         <td>{{i}}</td>
-        <td>{{gamestate[i]['name']}}</td>
+        <td>{{gamestate[i]['name']}} ({{gamestate[i]['id']}})</td>
         <td>{{gamestate[i]['hp']}}</td>
         <td><span class="label {{gamestate[i]['quality_class']}}" title="{{gamestate[i]['lastCrash']}}">{{gamestate[i]['quality']}}</span>
         </td>
