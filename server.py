@@ -82,6 +82,7 @@ class StatsHandler(tornado.web.RequestHandler):
         c.execute("SELECT * FROM statistics")
         result = c.fetchall()
         for record in result:
+            bot_id = record[0]
             name = names[record[1]]
             kills = record[2]
             lifetime = record[3]
@@ -105,7 +106,7 @@ class StatsHandler(tornado.web.RequestHandler):
             l = c.fetchall()
             if len(l)>0 :
                 life = l[0][0]
-            gamestate.append({"name": name,"hp":life, "kills": kills, "lifetime": lifetime, "score": points, "shots": shots,
+            gamestate.append({"id": bot_id, "name": name,"hp":life, "kills": kills, "lifetime": lifetime, "score": points, "shots": shots,
                               "steps": steps, "quality": quality, "quality_class": quality_class, "lastCrash": lastCrash, "coins": coins})
 
         self.render("stats.html", gamestate = sorted(gamestate, key=lambda k: -k['score']))
