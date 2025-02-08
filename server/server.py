@@ -64,11 +64,13 @@ class RegisterHandler(tornado.web.RequestHandler):
     def get(self):
         if not registration_enabled:
             self.write("Регистрация закрыта")
+            return
         self.render("register.html")
 
     def post(self):
         if not registration_enabled:
             self.write("Регистрация закрыта")
+            return
         name = self.get_argument('key', None)
         if name is None:
             self.redirect('/register')
