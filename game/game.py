@@ -7,6 +7,7 @@ import importlib as imp
 import traceback
 from multiprocessing import Process, Queue, Manager
 import ast
+from config import *
 
 def is_code_safe(code):
     # Запрещенные узлы AST
@@ -22,6 +23,8 @@ def is_code_safe(code):
         'requests': "Использование requests запрещено",
         'http.client': "Использование http.client запрещено",
         'urllib': "Использование urllib запрещено",
+        'pathlib': 'Использование pathlib запрещено',
+        '__import__': 'Использование pathlib запрещено',
     }
 
     class SafeCodeChecker(ast.NodeVisitor):
@@ -85,7 +88,7 @@ def make_testing():
         except Exception as e:
             print(e)
 
-    conn = sqlite3.connect('tanks.sqlite')
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
     #get settings
@@ -119,7 +122,7 @@ def make_testing():
 
     #make map
     #mainMap = [['.' for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
-    with open('map.txt') as map_file:
+    with open(map_path) as map_file:
         map_data = map_file.read()
         mainMap = map_data.split('\n')
         for i in range(len(mainMap)):
@@ -185,7 +188,7 @@ def make_testing():
         healthMap[x][y] = 1
         c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x,y])
     conn.commit()
-    sys.path.append("./bots/")
+    sys.path.append("bots/")
     while lifeplayers>int(settings['game_stop']):
         if int(settings['stop_ticks'])!=0 and ticks>int(settings['stop_ticks']):
             break

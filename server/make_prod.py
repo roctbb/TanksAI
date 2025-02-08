@@ -1,6 +1,6 @@
 import sqlite3
 
-conn = sqlite3.connect('tanks.sqlite')
+conn = sqlite3.connect('../data/tanks.sqlite')
 c = conn.cursor()
 c.execute("UPDATE settings SET value = 'production' WHERE param = 'mode';")
 c.execute("UPDATE settings SET value = 50 WHERE param = 'max_health';")

@@ -1,0 +1,35 @@
+version: "3.8"
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: .dockerfile
+    container_name: server
+    volumes:
+      - sqlite_data:/app/data
+    ports:
+      - "${PORT}:${PORT}"
+    restart: always
+    env_file:
+      - .env
+
+
+  game:
+    build:
+      context: ./game
+      dockerfile: .dockerfile
+    container_name: game
+    volumes:
+      - sqlite_data:/app/data
+    restart: always
+    env_file:
+      - .env
+
+
+volumes:
+  sqlite_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data

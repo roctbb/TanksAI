@@ -5,7 +5,7 @@ import sqlite3
 def getKey(N):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
-conn = sqlite3.connect('tanks.sqlite')
+conn = sqlite3.connect('../data/tanks.sqlite')
 c = conn.cursor()
 #c.execute("DELETE FROM players")
 names = ['Savcha']
