@@ -6,7 +6,7 @@ services:
       dockerfile: .dockerfile
     container_name: tanksai-server-${NUM}
     networks:
-      - internal_network
+      - public_network
     volumes:
       - sqlite_data:/app/data
     ports:
@@ -47,5 +47,8 @@ volumes:
       device: ${PWD}/data
 
 networks:
-  internal_network:
-    internal: true
+  private_network:
+    driver: bridge
+    internal: true  # Эта сеть блокирует доступ к интернету
+  public_network:
+    driver: bridge   # Обычная сеть с доступом к интернету
