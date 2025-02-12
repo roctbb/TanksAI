@@ -5,6 +5,8 @@ services:
       context: ./server
       dockerfile: .dockerfile
     container_name: tanksai-server-${NUM}
+    networks:
+      - internal_network
     volumes:
       - sqlite_data:/app/data
     ports:
@@ -12,19 +14,29 @@ services:
     restart: always
     env_file:
       - .env
-
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   game:
     build:
       context: ./game
       dockerfile: .dockerfile
     container_name: tanksai-game-${NUM}
+    networks:
+      - internal_network
     volumes:
       - sqlite_data:/app/data
     restart: always
     env_file:
       - .env
-
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   sqlite_data:
@@ -33,3 +45,7 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/data
+
+networks:
+  internal_network:
+    internal: true
