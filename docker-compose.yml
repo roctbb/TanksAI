@@ -26,7 +26,7 @@ services:
       dockerfile: .dockerfile
     container_name: tanksai-game-${NUM}
     networks:
-      - internal_network
+      - private_network
     volumes:
       - sqlite_data:/app/data
     restart: always
