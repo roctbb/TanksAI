@@ -198,7 +198,8 @@ def make_testing():
 
         historyMap = [[0 for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
 
-        if random.randint(1, 3)==1:
+        percentage_chance = 0.48
+        if random.random() < percentage_chance:
             x = random.randint(0, int(settings["width"]) - 1)
             y = random.randint(0, int(settings["height"]) - 1)
             cc = 0
