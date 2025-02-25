@@ -511,7 +511,7 @@ while 1:
     s = make_testing()
     if s['mode']!='sandbox':
         break
-    time.sleep(5)
+    time.sleep(15)
 
 
 
