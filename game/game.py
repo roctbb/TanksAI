@@ -510,8 +510,9 @@ def make_testing():
 while 1:
     s = make_testing()
     if s['mode']!='sandbox':
+        time.sleep(60)
         break
-    time.sleep(15)
+    time.sleep(3)
 
 
 
