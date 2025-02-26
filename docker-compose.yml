@@ -29,7 +29,7 @@ services:
       - private_network
     volumes:
       - sqlite_data:/app/data
-    restart: always
+    restart: "no"
     env_file:
       - .env
     logging:
