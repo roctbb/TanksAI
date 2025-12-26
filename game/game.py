@@ -1,83 +1,92 @@
 import sqlite3
 import random
 import time
-import sys
-import os
-import importlib as imp
-import traceback
-from multiprocessing import Process, Queue, Manager
-import ast
 from config import *
+import os
+import subprocess
+import json
+import tempfile
+import pathlib
+import shutil
 
-def is_code_safe(code):
-    # Запрещенные узлы AST
-    forbidden = {
-        # Запрещенные функции
-        'eval': "Использование eval запрещено",
-        'exec': "Использование exec запрещено",
-        'open': "Использование open запрещено",
-        # Запрещенные модули
-        'os': "Импорт модуля os запрещен",
-        'subprocess': "Использование subprocess запрещено",
-        'socket': "Использование socket запрещено",
-        'requests': "Использование requests запрещено",
-        'http.client': "Использование http.client запрещено",
-        'urllib': "Использование urllib запрещено",
-        'pathlib': 'Использование pathlib запрещено',
-        '__import__': 'Использование pathlib запрещено',
-    }
+NSJAIL = "/usr/local/bin/nsjail"
+WORKDIR = pathlib.Path("/tmp/work")
+WORKDIR.mkdir(parents=True, exist_ok=True)
 
-    class SafeCodeChecker(ast.NodeVisitor):
-        def visit_Call(self, node):
-            # Проверяем вызовы функций
-            if isinstance(node.func, ast.Name) and node.func.id in forbidden:
-                raise ValueError(forbidden[node.func.id])
-            self.generic_visit(node)
 
-        def visit_Import(self, node):
-            # Проверяем импорты модулей
-            for alias in node.names:
-                if alias.name in forbidden:
-                    raise ValueError(forbidden[alias.name])
-            self.generic_visit(node)
+def run_bot(bot_path, state, work):
+    if sum(f.stat().st_size for f in work.rglob("*") if f.is_file()) > 8 * 1024 * 1024:
+        return {"choice": "crash", "error": "Disk quota exceeded"}
+    # Write input for bot
+    input_file = work / "input.json"
+    input_file.write_text(json.dumps(state))
 
-        def visit_ImportFrom(self, node):
-            # Проверяем импорты из модулей
-            if node.module in forbidden:
-                raise ValueError(forbidden[node.module])
-            for alias in node.names:
-                if f"{node.module}.{alias.name}" in forbidden:
-                    raise ValueError(forbidden[f"{node.module}.{alias.name}"])
-            self.generic_visit(node)
+    cmd = [
+        NSJAIL,
+        "--quiet",
+        "--mode=once",
+        "--time_limit=0.8",
+        "--rlimit_cpu=1",
+        "--rlimit_as=256",
+        "--rlimit_nproc=2",
+        "--disable_clone_newnet",
 
-        def visit_Expr(self, node):
-            # Проверяем выражения, такие как eval и exec
-            if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
-                if node.value.func.id in ['eval', 'exec']:
-                    raise ValueError(forbidden[node.value.func.id])
-            self.generic_visit(node)
+        # mount Python into workspace
+        "--bindmount_ro=/usr/local:/usr/local",
+        "--bindmount_ro=/lib:/lib",
+        "--bindmount_ro=/lib64:/lib64",
+        f"--bindmount={work}:/work",
+        f"--bindmount_ro={bot_path}:/work/bot.py",
+        "--bindmount_ro=/app/bot_runner.py:/work/bot_runner.py",
+        "--tmpfs=/tmp:size=16M",
 
+        "--cwd=/work",
+        "--",
+        "/usr/local/bin/python3",
+        "/work/bot_runner.py",
+    ]
+
+    proc = None
     try:
-        # Парсим код в AST
-        tree = ast.parse(code)
-        # Проверяем код на безопасность
-        SafeCodeChecker().visit(tree)
-        return True
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return False
-        
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=1.2,
+        )
+        return json.loads(proc.stdout)
+    except subprocess.TimeoutExpired:
+        return {}
+    except json.JSONDecodeError:
+        return {"choice": "crash", "error": "Incorrect JSON"}
+    except Exception:
+        if not proc:
+            return {"choice": "crash", "error": "Couldn't load process"}
+        if proc.stdout and proc.stderr:
+            return {
+                "choice": "crash",
+                "error": f"Stdout:\n{proc.stdout[:500]}\n\nStderr:\n{proc.stderr[:500]}",
+            }
+        elif proc.stdout:
+            return {
+                "choice": "crash",
+                "error": f"Stdout:\n{proc.stdout[:500]}",
+            }
+        elif proc.stderr:
+            return {
+                "choice": "crash",
+                "error": proc.stderr[:500],
+            }
+        else:
+            return {
+                "choice": "crash",
+                "error": "No stdout/stderr",
+            }
 
-def wrapper(func, x, y, field, rv):
-    try:
-        result = func(x,y,field)
-        rv['choice']= result
-    except Exception as e:
-        rv['choice'] = "crash"
-        rv['error'] = str(e) + " " + traceback.format_exc()
 
 def make_testing():
-    #работа с m файлами
+    # работа с m файлами
     folder = './bots'
     for the_file in os.listdir(folder):
         file_path = os.path.join(folder, the_file)
@@ -91,15 +100,15 @@ def make_testing():
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
 
-    #get settings
+    # get settings
     c.execute("SELECT * FROM settings")
     result = c.fetchall()
     settings = dict()
     for string in result:
         settings[string[1]] = string[2]
     print(settings)
-    #get bots
-    #change to in game
+    # get bots
+    # change to in game
     names = dict()
     c.execute("SELECT key, name FROM players WHERE state = 'ready'")
     result = c.fetchall()
@@ -108,20 +117,18 @@ def make_testing():
     for string in result:
         print(string[0]+" - "+string[1])
         players.append(string[0])
-        names[string[0]]=string[1]
+        names[string[0]] = string[1]
     print("")
     print("")
 
-    #clear current state
+    # clear current state
     c.execute("DELETE FROM statistics")
     c.execute("DELETE FROM actions")
     c.execute("DELETE FROM game")
     c.execute("DELETE FROM coins")
 
-
-
-    #make map
-    #mainMap = [['.' for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
+    # make map
+    # mainMap = [['.' for i in range(int(settings["height"]))] for j in range(int(settings["width"]))]
     with open(map_path) as map_file:
         map_data = map_file.read()
         mainMap = map_data.split('\n')
@@ -151,8 +158,7 @@ def make_testing():
     steps = dict()
     shots = dict()
     banlist = list()
-
-
+    bot_workdirs = {}
 
     for player in players:
         coords[player] = dict()
@@ -171,26 +177,28 @@ def make_testing():
             y = random.randint(0, int(settings["height"])-1)
         mainMap[x][y] = player
         healthMap[x][y] = int(settings["max_health"])
-        coords[player]["x"]=x
-        coords[player]["y"] =y
+        coords[player]["x"] = x
+        coords[player]["y"] = y
+        work = WORKDIR / player
+        work.mkdir(parents=True, exist_ok=True)
+        bot_workdirs[player] = work
         c.execute("INSERT INTO statistics (key) VALUES (?)", [player])
-        c.execute("INSERT INTO game (key,x,y,life) VALUES (?,?,?,?)", [player,x,y, str(health[player])])
+        c.execute("INSERT INTO game (key,x,y,life) VALUES (?,?,?,?)", [player, x, y, str(health[player])])
     c.execute("UPDATE settings SET value = ? WHERE param = ?", ["running", "game_state"])
 
-    #coins
+    # coins
     for i in range(30):
         x = random.randint(0, int(settings["width"]) - 1)
         y = random.randint(0, int(settings["height"]) - 1)
-        while mainMap[x][y]!='.':
+        while mainMap[x][y] != '.':
             x = random.randint(0, int(settings["width"])-1)
             y = random.randint(0, int(settings["height"])-1)
         mainMap[x][y] = '@'
         healthMap[x][y] = 1
         c.execute("INSERT INTO coins (x,y) VALUES (?,?)", [x,y])
     conn.commit()
-    sys.path.append("bots/")
-    while lifeplayers>int(settings['game_stop']):
-        if int(settings['stop_ticks'])!=0 and ticks>int(settings['stop_ticks']):
+    while lifeplayers > int(settings['game_stop']):
+        if int(settings['stop_ticks']) != 0 and ticks > int(settings['stop_ticks']):
             break
         print("current tick:"+str(ticks))
         choices = dict()
@@ -203,10 +211,10 @@ def make_testing():
             x = random.randint(0, int(settings["width"]) - 1)
             y = random.randint(0, int(settings["height"]) - 1)
             cc = 0
-            while mainMap[x][y] != '.' and cc<10:
+            while mainMap[x][y] != '.' and cc < 10:
                 x = random.randint(0, int(settings["width"]) - 1)
                 y = random.randint(0, int(settings["height"]) - 1)
-                cc+=1
+                cc += 1
             if cc < 10:
                 mainMap[x][y] = '@'
                 healthMap[x][y] = 1
@@ -233,57 +241,46 @@ def make_testing():
             c.execute("SELECT code FROM players WHERE key = ?", [player])
             code = c.fetchone()
             try:
-                code = code[0].decode('utf8').replace('exit()', '').replace('telebot', '')
+                code = code[0].decode('utf8')
             except Exception as e:
                 print("Error with", player, ": ", e)
                 try:
-                    code = code[0].replace('exit()', '').replace('telebot', '')
+                    code = code[0]
                 except Exception as e:
                     print("Agein error with", player, ": ", e)
                     code = ""
-            if not is_code_safe(code):
-                code = ""
-                print(code)
-            output_file = open("./bots/" + player + ".py", 'w')
-            output_file.write(code)
-            output_file.close()
+
+            print(f"Now running: {player} ({names[player]})")
+
+            with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".py",
+                    delete=False,
+            ) as bot_file:
+                bot_file.write(code)
+                bot_path = pathlib.Path(bot_file.name).resolve()
+
+            try:
+                result = run_bot(bot_path, (int(coords[player]["x"]), int(coords[player]["y"]), historyMap),
+                                 bot_workdirs[player])
+            finally:
+                # Always clean up
+                try:
+                    bot_path.unlink()
+                except OSError:
+                    pass
 
             lerror = ""
 
-            try:
-                module = __import__(player, fromlist=["make_choice"])
-                module = imp.reload(module)
-                makeChoice = getattr(module, "make_choice")
-                print("Now running:" +player+" ("+names[player]+")")
-
-                manager = Manager()
-                return_dict = manager.dict()
-
-                thread = Process(
-                    target=wrapper,
-                    name="game_choice",
-                    args=[makeChoice, int(coords[player]["x"]), int(coords[player]["y"]), historyMap, return_dict],
-                )
-                thread.start()
-                thread.join(timeout=0.4)
-                thread.terminate()
-
-
-
-
-                if 'choice' not in return_dict:
-                    choices[player] = "crash"
-                    lerror = "timeout"
-                    timeout_flag = True
-                elif 'error' in return_dict:
-                    choices[player] = "crash"
-                    lerror = return_dict['error']
-                else:
-                    choices[player] = return_dict['choice']
-
-            except Exception as e:
+            if 'choice' not in result:
                 choices[player] = "crash"
-                lerror = str(e)
+                lerror = "timeout"
+                timeout_flag = True
+            elif 'error' in result:
+                choices[player] = "crash"
+                lerror = result['error']
+            else:
+                choices[player] = result['choice']
 
             if choices[player] == "crash":
                 print(player+" ("+names[player]+") has crashed :( :"+lerror)
@@ -291,8 +288,8 @@ def make_testing():
                 crashes[player]+=1
                 c.execute("INSERT INTO actions (key, value) VALUES (?, ?)", [player, choices[player]])
                 c.execute(
-                    "UPDATE statistics SET crashes = " + str(crashes[player]) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET crashes = ? WHERE key = ?",
+                    [str(crashes[player]), player])
                 c.execute(
                     "UPDATE statistics SET lastCrash = ? WHERE key = ?",
                     [lerror, player])
@@ -312,7 +309,7 @@ def make_testing():
                     coords[player]["y"] -= 1
                     mainMap[coords[player]["x"]][coords[player]["y"]] = player
                     healthMap[coords[player]["x"]][coords[player]["y"]] = health[player]
-                    c.execute("UPDATE game SET y = " + str(coords[player]["y"]) + " WHERE key = ?", [player])
+                    c.execute("UPDATE game SET y = ? WHERE key = ?", [str(coords[player]["y"]), player])
                     c.execute(
                         "DELETE FROM coins WHERE x = ? AND y = ?",
                         [coords[player]["x"], coords[player]["y"]])
@@ -326,7 +323,7 @@ def make_testing():
                     coords[player]["y"] += 1
                     mainMap[coords[player]["x"]][coords[player]["y"]] = player
                     healthMap[coords[player]["x"]][coords[player]["y"]] = health[player]
-                    c.execute("UPDATE game SET y = " + str(coords[player]["y"]) + " WHERE key = ?", [player])
+                    c.execute("UPDATE game SET y = ? WHERE key = ?", [str(coords[player]["y"]), player])
                     c.execute(
                         "DELETE FROM coins WHERE x = ? AND y = ?",
                         [coords[player]["x"], coords[player]["y"]])
@@ -340,7 +337,7 @@ def make_testing():
                     coords[player]["x"] -= 1
                     mainMap[coords[player]["x"]][coords[player]["y"]] = player
                     healthMap[coords[player]["x"]][coords[player]["y"]] = health[player]
-                    c.execute("UPDATE game SET x = " + str(coords[player]["x"]) + " WHERE key = ?", [player])
+                    c.execute("UPDATE game SET x = ? WHERE key = ?", [str(coords[player]["x"]), player])
                     c.execute(
                         "DELETE FROM coins WHERE x = ? AND y = ?",
                         [coords[player]["x"], coords[player]["y"]])
@@ -354,7 +351,7 @@ def make_testing():
                     coords[player]["x"]+=1
                     mainMap[coords[player]["x"]][coords[player]["y"]] = player
                     healthMap[coords[player]["x"]][coords[player]["y"]] = health[player]
-                    c.execute("UPDATE game SET x = " + str(coords[player]["x"]) + " WHERE key = ?", [player])
+                    c.execute("UPDATE game SET x = ? WHERE key = ?", [str(coords[player]["x"]), player])
                     c.execute(
                         "DELETE FROM coins WHERE x = ? AND y = ?",
                         [coords[player]["x"], coords[player]["y"]])
@@ -375,7 +372,7 @@ def make_testing():
                 shots[player] += 1
                 for y in range(py-1, -1, -1):
                     if mainMap[px][y] == '#':
-                        break;
+                        break
                     if mainMap[px][y] not in ('.', '@'):
                         hit_player = mainMap[px][y]
 
@@ -390,9 +387,7 @@ def make_testing():
                             y) + "] " + choices[player])
                             '''
 
-
-
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = ? WHERE key = ?", [str(health[hit_player]), hit_player])
                         break
             if choices[player] == "fire_down":
                 shots[player] += 1
@@ -412,7 +407,7 @@ def make_testing():
 
 
 
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = ? WHERE key = ?", [str(health[hit_player]), hit_player])
                         break
             if choices[player] == "fire_left":
                 shots[player] += 1
@@ -431,9 +426,7 @@ def make_testing():
                             health[hit_player]) + ")" + " [" + str(px) + " ," + str(py) + "] -> [" + str(x) + ", " + str(
                             py) + "] " + choices[player])
 
-
-
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = ? WHERE key = ?", [str(health[hit_player]), hit_player])
                         break
             if choices[player] == "fire_right":
                 shots[player] += 1
@@ -452,37 +445,32 @@ def make_testing():
                             health[hit_player]) + ")" + " [" + str(px) + " ," + str(py) + "] -> [" + str(x) + ", " + str(
                             py) + "] " + choices[player])
 
-
-
-
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = ? WHERE key = ?", [str(health[hit_player]), hit_player])
                         break
 
             if choices[player] == "fire_up" or choices[player] == "fire_down" or choices[player] == "fire_left" or choices[player] == "fire_right":
                 c.execute(
-                    "UPDATE statistics SET kills = " + str(kills[player]) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET kills = ? WHERE key = ?", [str(kills[player]), player])
                 #print(player + " sent "+choices[player])
 
                 # db record
 
             if int(health[player])>0:
                 c.execute(
-                    "UPDATE statistics SET lifetime = " + str(ticks) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET lifetime = ? WHERE key = ?",
+                    [str(ticks), player])
                 c.execute(
-                    "UPDATE statistics SET shots = " + str(shots[player]) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET shots = ? WHERE key = ?",
+                    [str(shots[player]), player])
                 c.execute(
-                    "UPDATE statistics SET coins = " + str(coins[player]) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET coins = ? WHERE key = ?",
+                    [str(coins[player]), player])
                 c.execute(
-                    "UPDATE statistics SET steps = " + str(steps[player]) + " WHERE key = ?",
-                    [player])
+                    "UPDATE statistics SET steps = ? WHERE key = ?",
+                    [str(steps[player]), player])
                 c.execute(
-                    "UPDATE statistics SET errors = " + str(errors[player]) + " WHERE key = ?",
-                    [player])
-
+                    "UPDATE statistics SET errors = ? WHERE key = ?",
+                    [str(errors[player]), player])
 
             conn.commit()
 
@@ -505,11 +493,16 @@ def make_testing():
     c.execute("UPDATE settings SET value = ? WHERE param = ?", ["stop", "game_state"])
 
     conn.commit()
+
+    for player in players:
+        shutil.rmtree(bot_workdirs[player], ignore_errors=True)
+
     return settings
+
 
 while 1:
     s = make_testing()
-    if s['mode']!='sandbox':
+    if s['mode'] != 'sandbox':
         time.sleep(60)
         break
     time.sleep(3)

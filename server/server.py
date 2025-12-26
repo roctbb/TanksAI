@@ -28,7 +28,7 @@ class MainHandler(tornado.web.RequestHandler):
             file = self.request.files['file'][0]
             conn = sqlite3.connect(db_path)
             c = conn.cursor()
-            c.execute("SELECT * FROM players WHERE key = '%s'" % self.get_argument("key"))
+            c.execute("SELECT * FROM players WHERE key = ?", [self.get_argument("key")])
             player = c.fetchone()
             c.execute("SELECT * FROM settings")
             result = c.fetchall()

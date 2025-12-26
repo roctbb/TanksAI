@@ -1,2 +1,9 @@
 .idea/
 .env
+data/tanks.sqlite
+data/tanks1.sqlite
+data/tanks2.sqlite
+master_bot.py
+stupidBot.py
+testBot.py
+miner.py
