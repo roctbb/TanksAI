@@ -1,11 +1,12 @@
 import random
 import string
 import sqlite3
+from config import db_path
 
 def getKey(N):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
-conn = sqlite3.connect('../data/tanks.sqlite')
+conn = sqlite3.connect(db_path)
 c = conn.cursor()
 #c.execute("DELETE FROM players")
 names = ['Savcha']
