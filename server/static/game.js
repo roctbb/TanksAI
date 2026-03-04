@@ -9,8 +9,10 @@ var $$ = {
     original_map: undefined,
     map: undefined,
     players: undefined,
-    animationIntervalId: undefined,
-    tick: 0
+    animationFrameId: undefined,
+    animationStartTime: undefined,
+    animationDuration: 800,
+    isAnimating: false
 };
 
 function equalNames(name1, name2) {
@@ -130,7 +132,14 @@ function preprocessing(map) {
     $$.original_map = map;
 }
 
-function animate() {
+function animate(timestamp) {
+    if (!$$.animationStartTime) {
+        $$.animationStartTime = timestamp;
+    }
+
+    var elapsed = timestamp - $$.animationStartTime;
+    var progress = Math.min(elapsed / $$.animationDuration, 1.0);
+
     ctx.clearRect(0, 0, width, height);
     for (var x = 0; x < $$.map.length; x++) {
         for (var y = 0; y < $$.map[x].length; y++) {
@@ -143,12 +152,12 @@ function animate() {
                         ctx.drawImage(textures['coin'], x * tileSize, y * tileSize, tileSize, tileSize);
                         break;
                     case '-':
-                        ctx.globalAlpha = 1 - $$.tick / animationFrames;
+                        ctx.globalAlpha = 1 - progress;
                         ctx.drawImage(textures['horiz'], x * tileSize, y * tileSize, tileSize, tileSize);
                         ctx.globalAlpha = 1.0;
                         break;
                     case '|':
-                        ctx.globalAlpha = 1 - $$.tick / animationFrames;
+                        ctx.globalAlpha = 1 - progress;
                         ctx.drawImage(textures['verti'], x * tileSize, y * tileSize, tileSize, tileSize);
                         ctx.globalAlpha = 1.0;
                         break;
@@ -164,16 +173,16 @@ function animate() {
         var baseY = p.y;
         switch (p.action) {
             case 'go_left':
-                baseX += $$.tick / animationFrames;
+                baseX += (1 - progress);
                 break;
             case 'go_right':
-                baseX -= $$.tick / animationFrames;
+                baseX -= (1 - progress);
                 break;
             case 'go_up':
-                baseY += $$.tick / animationFrames;
+                baseY += (1 - progress);
                 break;
             case 'go_down':
-                baseY -= $$.tick / animationFrames;
+                baseY -= (1 - progress);
                 break;
         }
         ctx.drawImage(textures['player'], baseX * tileSize, baseY * tileSize, tileSize, tileSize);
@@ -184,11 +193,21 @@ function animate() {
         if (p.hit === 1) ctx.fillStyle = '#ff0000';
         ctx.fillText(p.life.toString(), (baseX + 0.5) * tileSize - w_life / 2, (baseY + 0.6) * tileSize);
     }
-    $$.tick--;
-    if ($$.tick < 0) clearInterval($$.animationIntervalId);
+
+    if (progress < 1.0) {
+        $$.animationFrameId = requestAnimationFrame(animate);
+    } else {
+        $$.isAnimating = false;
+        $$.animationStartTime = undefined;
+    }
 }
 
 function fetchState() {
+    if (document.hidden) {
+        fetchTimeoutId = setTimeout(fetchState, 1000);
+        return;
+    }
+
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '/state', true);
     xhr.send();
@@ -200,8 +219,12 @@ function fetchState() {
             if (checkDifference(map)) {
                 changed = true;
                 preprocessing(map);
-                $$.tick = animationFrames;
-                $$.animationIntervalId = setInterval(animate, 800 / animationFrames);
+                if ($$.animationFrameId) {
+                    cancelAnimationFrame($$.animationFrameId);
+                }
+                $$.isAnimating = true;
+                $$.animationStartTime = undefined;
+                $$.animationFrameId = requestAnimationFrame(animate);
             }
         }
         fetchTimeoutId = setTimeout(fetchState, changed ? 900 : 200);
