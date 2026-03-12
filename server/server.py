@@ -11,6 +11,7 @@ import string
 import base64
 from config import *
 
+_server_dir = os.path.dirname(os.path.realpath(__file__))
 # os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 from time import gmtime, strftime
@@ -246,12 +247,14 @@ class StatsHandler(tornado.web.RequestHandler):
                 quality_class = "label-warning"
             points = coins * 50 + kills * 20 + lifetime - crashes * 5
             life = 0
-            c.execute("SELECT life FROM game WHERE key = ?", [record[1]])
+            shield_val = 0
+            c.execute("SELECT life, shield FROM game WHERE key = ?", [record[1]])
             l = c.fetchall()
             if len(l) > 0:
                 life = l[0][0]
+                shield_val = l[0][1]
             gamestate.append(
-                {"id": bot_id, "name": name, "hp": life, "kills": kills, "lifetime": lifetime, "score": points,
+                {"id": bot_id, "name": name, "hp": life, "shield": shield_val, "kills": kills, "lifetime": lifetime, "score": points,
                  "shots": shots,
                  "steps": steps, "quality": quality, "quality_class": quality_class, "lastCrash": lastCrash,
                  "coins": coins})
@@ -308,7 +311,7 @@ class StateHandler(tornado.web.RequestHandler):
             y = record[3]
             life = record[4]
             name = names[record[1]]
-            mainMap[x][y] = {'name': name, 'life': life, 'hit': 0}
+            mainMap[x][y] = {'name': name, 'life': life, 'hit': 0, 'shield': record[5] if len(record) > 5 else 0}
         for record in result:
             x = record[2]
             y = record[3]
@@ -317,6 +320,8 @@ class StateHandler(tornado.web.RequestHandler):
             if len(action) < 1:
                 continue
             action = action[0]
+            if action[0] == "shield":
+                mainMap[x][y]['shielding'] = 1
             if action[0] == "fire_up":
                 for i in range(y - 1, -1, -1):
                     if mainMap[x][i] != '.' and mainMap[x][i] != '&uarr;' and mainMap[x][i] != '&darr;' and mainMap[x][
@@ -394,14 +399,15 @@ class Application(tornado.web.Application):
         handlers = [(r"/", MainHandler), (r"/register", RegisterHandler), (r"/game", GameHandler),
                     (r"/state", StateHandler), (r"/stats", StatsHandler),
                     (r"/admin", AdminHandler), (r"/admin/bot/([^/]+)", BotCodeHandler),
-                    (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "./static/"}), ]
-        settings = {}
+                    (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': os.path.join(_server_dir, "static")}), ]
+        settings = {"template_path": _server_dir}
         super(Application, self).__init__(handlers, **settings)
 
 
 def main():
     http_server = tornado.httpserver.HTTPServer(Application())
     http_server.listen(port)
+    print("Ready to rock!")
     tornado.ioloop.IOLoop.instance().start()
 
 

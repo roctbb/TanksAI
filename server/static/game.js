@@ -44,7 +44,7 @@ function estimateMovement(map, x, y) {
         }
     }
     $$.players[name] = {
-        x: x, y: y, life: p['life'], hit: p['hit'], action: action
+        x: x, y: y, life: p['life'], hit: p['hit'], action: action, shield: p['shield'] || 0, shielding: p['shielding'] || 0
     }
 }
 
@@ -210,12 +210,21 @@ function animate(timestamp) {
                 break;
         }
         ctx.drawImage(textures['player'], baseX * tileSize, baseY * tileSize, tileSize, tileSize);
+        if (p.shielding) {
+            ctx.globalAlpha = 0.35;
+            ctx.fillStyle = '#4488ff';
+            ctx.beginPath();
+            ctx.arc((baseX + 0.5) * tileSize, (baseY + 0.5) * tileSize, tileSize * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
         ctx.fillStyle = '#ffffff';
         var w_name = ctx.measureText(name).width;
-        var w_life = ctx.measureText(p.life.toString()).width;
+        var displayValue = p.shielding ? p.shield.toString() : p.life.toString();
+        var w_life = ctx.measureText(displayValue).width;
         ctx.fillText(name, (baseX + 0.5) * tileSize - w_name / 2, (baseY + 0.3) * tileSize);
         if (p.hit === 1) ctx.fillStyle = '#ff0000';
-        ctx.fillText(p.life.toString(), (baseX + 0.5) * tileSize - w_life / 2, (baseY + 0.6) * tileSize);
+        ctx.fillText(displayValue, (baseX + 0.5) * tileSize - w_life / 2, (baseY + 0.6) * tileSize);
     }
 
     if (progress < 1.0) {

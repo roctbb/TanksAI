@@ -5,6 +5,8 @@ import sys
 import os
 import importlib as imp
 import traceback
+import multiprocessing
+multiprocessing.set_start_method('fork')
 from multiprocessing import Process, Queue, Manager
 import ast
 from config import *
@@ -68,13 +70,26 @@ def is_code_safe(code):
         return False
         
 
+def apply_damage(hit_player, damage, health, shield, choices, healthMap, x, y):
+    if choices.get(hit_player) == "shield" and shield[hit_player] > 0:
+        absorbed = min(damage, shield[hit_player])
+        shield[hit_player] -= absorbed
+        damage -= absorbed
+    health[hit_player] -= damage
+    healthMap[x][y] -= damage
+
+
 def wrapper(func, x, y, field, rv):
     try:
         result = func(x,y,field)
         rv['choice']= result
     except Exception as e:
         rv['choice'] = "crash"
-        rv['error'] = str(e) + " " + traceback.format_exc()
+        error_msg = traceback.format_exc()
+        # Скрываем ключ игрока из traceback
+        import re
+        error_msg = re.sub(r'bots/[A-Z0-9]+\.py', 'bots/bot.py', error_msg)
+        rv['error'] = str(e) + " " + error_msg
 
 def make_testing():
     #работа с m файлами
@@ -150,6 +165,7 @@ def make_testing():
     ticks = 0
     steps = dict()
     shots = dict()
+    shield = dict()
     banlist = list()
 
 
@@ -161,6 +177,7 @@ def make_testing():
         crashes[player] = 0
         shots[player] = 0
         health[player] = int(settings["max_health"])
+        shield[player] = int(settings["max_health"]) // 2
         kills[player] = 0
         coins[player] = 0
         history[player]=[]
@@ -174,7 +191,7 @@ def make_testing():
         coords[player]["x"]=x
         coords[player]["y"] =y
         c.execute("INSERT INTO statistics (key) VALUES (?)", [player])
-        c.execute("INSERT INTO game (key,x,y,life) VALUES (?,?,?,?)", [player,x,y, str(health[player])])
+        c.execute("INSERT INTO game (key,x,y,life,shield) VALUES (?,?,?,?,?)", [player,x,y, str(health[player]), str(shield[player])])
     c.execute("UPDATE settings SET value = ? WHERE param = ?", ["running", "game_state"])
 
     #coins
@@ -215,7 +232,7 @@ def make_testing():
 
         for player in players:
             score = coins[player] * 50 + kills[player] * 20 + ticks - crashes[player] * 5
-            historyMap[coords[player]["x"]][coords[player]["y"]] = {"life": health[player], "history": history[player], "name": names[player], "score": score}
+            historyMap[coords[player]["x"]][coords[player]["y"]] = {"life": health[player], "history": history[player], "name": names[player], "score": score, "shield": shield[player]}
 
         for i in range(len(mainMap)):
             for j in range(len(mainMap[0])):
@@ -359,7 +376,7 @@ def make_testing():
                     c.execute(
                         "DELETE FROM coins WHERE x = ? AND y = ?",
                         [coords[player]["x"], coords[player]["y"]])
-            if choices[player]=="go_up" or choices[player] == "go_down" or choices[player] == "go_left" or choices[player] == "go_right" or  choices[player] == "fire_up" or choices[player] == "fire_down" or choices[player] == "fire_left" or choices[player] == "fire_right" or choices[player] == "crash":
+            if choices[player]=="go_up" or choices[player] == "go_down" or choices[player] == "go_left" or choices[player] == "go_right" or  choices[player] == "fire_up" or choices[player] == "fire_down" or choices[player] == "fire_left" or choices[player] == "fire_right" or choices[player] == "crash" or choices[player] == "self_destruct" or choices[player] == "shield":
                 c.execute("INSERT INTO actions (key, value) VALUES (?, ?)", [player, choices[player]])
                 history[player].append(choices[player])
             else:
@@ -380,8 +397,7 @@ def make_testing():
                     if mainMap[px][y] not in ('.', '@'):
                         hit_player = mainMap[px][y]
 
-                        health[hit_player]-=1
-                        healthMap[px][y] -= 1
+                        apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
 
                         kills[player]+=1
 
@@ -393,7 +409,7 @@ def make_testing():
 
 
 
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                         break
             if choices[player] == "fire_down":
                 shots[player] += 1
@@ -403,8 +419,7 @@ def make_testing():
                     if mainMap[px][y] not in ('.', '@'):
                         hit_player = mainMap[px][y]
 
-                        health[hit_player] -= 1
-                        healthMap[px][y] -= 1
+                        apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
 
                         kills[player] += 1
 
@@ -413,7 +428,7 @@ def make_testing():
 
 
 
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                         break
             if choices[player] == "fire_left":
                 shots[player] += 1
@@ -423,8 +438,7 @@ def make_testing():
                     if mainMap[x][py] not in ('.', '@'):
                         hit_player = mainMap[x][py]
 
-                        health[hit_player] -= 1
-                        healthMap[x][py] -= 1
+                        apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
 
                         kills[player] += 1
 
@@ -434,7 +448,7 @@ def make_testing():
 
 
 
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                         break
             if choices[player] == "fire_right":
                 shots[player] += 1
@@ -444,8 +458,7 @@ def make_testing():
                     if mainMap[x][py] not in ('.', '@'):
                         hit_player = mainMap[x][py]
 
-                        health[hit_player] -= 1
-                        healthMap[x][py] -= 1
+                        apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
 
                         kills[player] += 1
 
@@ -456,7 +469,7 @@ def make_testing():
 
 
 
-                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                        c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                         break
 
             if choices[player] == "self_destruct":
@@ -482,10 +495,9 @@ def make_testing():
                         
                         if not blocked and mainMap[tx][ty] not in ('.', '@', '#'):
                             hit_player = mainMap[tx][ty]
-                            health[hit_player] -= 3
-                            healthMap[tx][ty] -= 3
+                            apply_damage(hit_player, 3, health, shield, choices, healthMap, tx, ty)
                             kills[player] += 1
-                            c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                            c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                 
                 c.execute("UPDATE statistics SET kills = " + str(kills[player]) + " WHERE key = ?", [player])
                 c.execute("UPDATE statistics SET lifetime = " + str(ticks) + " WHERE key = ?", [player])
@@ -493,11 +505,11 @@ def make_testing():
                 c.execute("UPDATE statistics SET coins = " + str(coins[player]) + " WHERE key = ?", [player])
                 c.execute("UPDATE statistics SET steps = " + str(steps[player]) + " WHERE key = ?", [player])
                 c.execute("UPDATE statistics SET errors = " + str(errors[player]) + " WHERE key = ?", [player])
-                c.execute("INSERT INTO actions (key, value) VALUES (?, ?)", [player, "self_destruct"])
 
                 health[player] = 0
                 healthMap[px][py] = 0
                 mainMap[px][py] = '.'
+                c.execute("UPDATE game SET life = 0 WHERE key = ?", [player])
 
             if choices[player] == "fire_up" or choices[player] == "fire_down" or choices[player] == "fire_left" or choices[player] == "fire_right":
                 c.execute(
