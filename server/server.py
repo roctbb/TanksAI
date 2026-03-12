@@ -320,7 +320,7 @@ class StateHandler(tornado.web.RequestHandler):
             if len(action) < 1:
                 continue
             action = action[0]
-            if action[0] == "shield":
+            if action[0] == "shield" and mainMap[x][y]['shield'] > 0:
                 mainMap[x][y]['shielding'] = 1
             if action[0] == "fire_up":
                 for i in range(y - 1, -1, -1):
