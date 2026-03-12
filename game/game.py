@@ -214,7 +214,8 @@ def make_testing():
         conn.commit()
 
         for player in players:
-            historyMap[coords[player]["x"]][coords[player]["y"]] = {"life": health[player], "history": history[player], "name": names[player]}
+            score = coins[player] * 50 + kills[player] * 20 + ticks - crashes[player] * 5
+            historyMap[coords[player]["x"]][coords[player]["y"]] = {"life": health[player], "history": history[player], "name": names[player], "score": score}
 
         for i in range(len(mainMap)):
             for j in range(len(mainMap[0])):
@@ -457,6 +458,46 @@ def make_testing():
 
                         c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
                         break
+
+            if choices[player] == "self_destruct":
+                print(player + " self-destructs!")
+                
+                for dx in range(-3, 4):
+                    for dy in range(-3, 4):
+                        if dx == 0 and dy == 0:
+                            continue
+                        tx, ty = px + dx, py + dy
+                        if not (0 <= tx < int(settings["width"]) and 0 <= ty < int(settings["height"])):
+                            continue
+                        # Проверка линии видимости (Брезенхэм)
+                        blocked = False
+                        sx, sy = abs(dx), abs(dy)
+                        n = max(sx, sy)
+                        for step in range(1, n):
+                            cx = px + round(dx * step / n)
+                            cy = py + round(dy * step / n)
+                            if mainMap[cx][cy] == '#':
+                                blocked = True
+                                break
+                        
+                        if not blocked and mainMap[tx][ty] not in ('.', '@', '#'):
+                            hit_player = mainMap[tx][ty]
+                            health[hit_player] -= 3
+                            healthMap[tx][ty] -= 3
+                            kills[player] += 1
+                            c.execute("UPDATE game SET life = " + str(health[hit_player]) + " WHERE key = ?", [hit_player])
+                
+                c.execute("UPDATE statistics SET kills = " + str(kills[player]) + " WHERE key = ?", [player])
+                c.execute("UPDATE statistics SET lifetime = " + str(ticks) + " WHERE key = ?", [player])
+                c.execute("UPDATE statistics SET shots = " + str(shots[player]) + " WHERE key = ?", [player])
+                c.execute("UPDATE statistics SET coins = " + str(coins[player]) + " WHERE key = ?", [player])
+                c.execute("UPDATE statistics SET steps = " + str(steps[player]) + " WHERE key = ?", [player])
+                c.execute("UPDATE statistics SET errors = " + str(errors[player]) + " WHERE key = ?", [player])
+                c.execute("INSERT INTO actions (key, value) VALUES (?, ?)", [player, "self_destruct"])
+
+                health[player] = 0
+                healthMap[px][py] = 0
+                mainMap[px][py] = '.'
 
             if choices[player] == "fire_up" or choices[player] == "fire_down" or choices[player] == "fire_left" or choices[player] == "fire_right":
                 c.execute(

@@ -357,6 +357,25 @@ class StateHandler(tornado.web.RequestHandler):
                         break
                     else:
                         mainMap[i][y] = '&rarr;'
+            if action[0] == "self_destruct":
+                for dx in range(-3, 4):
+                    for dy in range(-3, 4):
+                        if dx == 0 and dy == 0:
+                            continue
+                        tx, ty = x + dx, y + dy
+                        if not (0 <= tx < int(settings['width']) and 0 <= ty < int(settings['height'])):
+                            continue
+                        blocked = False
+                        n = max(abs(dx), abs(dy))
+                        for step in range(1, n):
+                            cx = x + round(dx * step / n)
+                            cy = y + round(dy * step / n)
+                            if mainMap[cx][cy] == '#':
+                                blocked = True
+                                break
+                        
+                        if not blocked and (mainMap[tx][ty] == '.' or mainMap[tx][ty] == '@'):
+                            mainMap[tx][ty] = '*'
         for record in result:
             if record[4] <= 0:
                 c.execute("DELETE FROM game WHERE id = ?", [record[0]])

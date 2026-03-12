@@ -118,17 +118,36 @@ function preprocessing(map) {
                         map_cell.push('-');
                     }
                     break;
+                case '*':
+                    map_cell.push('E');
+                    break;
                 case '.':
                     break;
                 default:
                     estimateMovement(map, x, y);
-                    map_cell.push('*');
+                    map_cell.push('P');
             }
             map_row.push(map_cell);
         }
         $$.map.push(map_row);
     }
     ctx.save();
+    // Показать взрыв на месте исчезнувших танков
+    if ($$.oldPlayers) {
+        for (var oldName in $$.oldPlayers) {
+            if (!$$.oldPlayers.hasOwnProperty(oldName)) continue;
+            if (!(oldName in $$.players)) {
+                var op = $$.oldPlayers[oldName];
+                $$.map[op.x][op.y].push('E');
+            }
+        }
+    }
+    $$.oldPlayers = {};
+    for (var n in $$.players) {
+        if ($$.players.hasOwnProperty(n)) {
+            $$.oldPlayers[n] = {x: $$.players[n].x, y: $$.players[n].y};
+        }
+    }
     $$.original_map = map;
 }
 
@@ -159,6 +178,11 @@ function animate(timestamp) {
                     case '|':
                         ctx.globalAlpha = 1 - progress;
                         ctx.drawImage(textures['verti'], x * tileSize, y * tileSize, tileSize, tileSize);
+                        ctx.globalAlpha = 1.0;
+                        break;
+                    case 'E':
+                        ctx.globalAlpha = 1 - progress;
+                        ctx.drawImage(textures['explosion'], x * tileSize, y * tileSize, tileSize, tileSize);
                         ctx.globalAlpha = 1.0;
                         break;
                 }
@@ -232,7 +256,7 @@ function fetchState() {
 }
 
 function loadTextures() {
-    var files = ["player", "grass", "brick", "coin", "horiz", "verti"];
+    var files = ["player", "grass", "brick", "coin", "horiz", "verti", "explosion"];
     for (var i = 0; i < files.length; i++) {
         textures[files[i]] = new Image();
         textures[files[i]].src = '/static/res/' + files[i] + '.png';
