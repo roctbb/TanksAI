@@ -8,6 +8,7 @@ import os
 import json
 import random
 import string
+import base64
 from config import *
 
 # os.chdir(os.path.dirname(os.path.realpath(__file__)))
@@ -17,6 +18,135 @@ from time import gmtime, strftime
 
 def getKey(N):
     return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
+
+
+def check_admin_auth(handler):
+    auth_header = handler.request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Basic '):
+        handler.set_header('WWW-Authenticate', 'Basic realm=Admin')
+        handler.set_status(401)
+        handler.finish()
+        return False
+    try:
+        auth_decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+        password = auth_decoded.split(':', 1)[1] if ':' in auth_decoded else ''
+    except Exception:
+        handler.set_status(401)
+        handler.finish()
+        return False
+    if password != admin_password:
+        handler.set_header('WWW-Authenticate', 'Basic realm=Admin')
+        handler.set_status(401)
+        handler.finish()
+        return False
+    return True
+
+
+class AdminHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        if not check_admin_auth(self):
+            return
+
+    def get(self):
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("SELECT id, name, key, state, code FROM players")
+        players = c.fetchall()
+        c.execute("SELECT key, crashes, errors, lastCrash FROM statistics")
+        stats = {row[0]: {'crashes': row[1], 'errors': row[2], 'lastCrash': row[3]} for row in c.fetchall()}
+        bots = []
+        for p in players:
+            code = p[4]
+            if isinstance(code, bytes):
+                try:
+                    code = code.decode('utf-8')
+                except Exception:
+                    code = code.decode('latin-1')
+            s = stats.get(p[2], {})
+            bots.append({
+                'id': p[0], 'name': p[1], 'key': p[2], 'state': p[3],
+                'has_code': bool(code),
+                'crashes': s.get('crashes', 0),
+                'errors': s.get('errors', 0),
+                'lastCrash': s.get('lastCrash', '') or ''
+            })
+        c.execute("SELECT value FROM settings WHERE param = 'mode'")
+        mode = c.fetchone()[0]
+        c.execute("SELECT value FROM settings WHERE param = 'game_state'")
+        game_state = c.fetchone()[0]
+        self.render("admin.html", bots=bots, mode=mode, game_state=game_state)
+
+    def post(self):
+        action = self.get_argument('action')
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+
+        if action == 'mode':
+            mode = self.get_argument('mode')
+            if mode == 'sandbox':
+                c.execute("UPDATE settings SET value = 'sandbox' WHERE param = 'mode'")
+                c.execute("UPDATE settings SET value = 20 WHERE param = 'max_health'")
+                c.execute("UPDATE settings SET value = 1 WHERE param = 'game_stop'")
+                c.execute("UPDATE settings SET value = 120 WHERE param = 'stop_ticks'")
+            else:
+                c.execute("UPDATE settings SET value = 'production' WHERE param = 'mode'")
+                c.execute("UPDATE settings SET value = 50 WHERE param = 'max_health'")
+                c.execute("UPDATE settings SET value = 0 WHERE param = 'game_stop'")
+                c.execute("UPDATE settings SET value = 300 WHERE param = 'stop_ticks'")
+            conn.commit()
+            self.redirect('/admin')
+            return
+
+        bot_id = self.get_argument('id')
+
+        if action == 'delete':
+            c.execute("SELECT key FROM players WHERE id = ?", [bot_id])
+            row = c.fetchone()
+            if row:
+                c.execute("DELETE FROM players WHERE id = ?", [bot_id])
+                c.execute("DELETE FROM statistics WHERE key = ?", [row[0]])
+                c.execute("DELETE FROM game WHERE key = ?", [row[0]])
+                c.execute("DELETE FROM actions WHERE key = ?", [row[0]])
+        elif action == 'toggle':
+            c.execute("SELECT state FROM players WHERE id = ?", [bot_id])
+            row = c.fetchone()
+            if row:
+                new_state = 'disabled' if row[0] != 'disabled' else 'ready'
+                c.execute("UPDATE players SET state = ? WHERE id = ?", [new_state, bot_id])
+        elif action == 'update':
+            name = self.get_argument('name')
+            code = self.get_argument('code')
+            c.execute("UPDATE players SET name = ?, code = ?, state = 'ready' WHERE id = ?", [name, code, bot_id])
+        elif action == 'reset_stats':
+            c.execute("SELECT key FROM players WHERE id = ?", [bot_id])
+            row = c.fetchone()
+            if row:
+                c.execute("UPDATE statistics SET kills=0, lifetime=0, steps=0, shots=0, crashes=0, errors=0, lastCrash=NULL, coins=0 WHERE key = ?", [row[0]])
+
+        conn.commit()
+        self.redirect('/admin')
+
+
+class BotCodeHandler(tornado.web.RequestHandler):
+    def prepare(self):
+        if not check_admin_auth(self):
+            return
+
+    def get(self, key):
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute("SELECT code FROM players WHERE key = ?", [key])
+        result = c.fetchone()
+        if result and result[0]:
+            code = result[0]
+            if isinstance(code, bytes):
+                try:
+                    code = code.decode('utf-8')
+                except Exception:
+                    code = code.decode('latin-1')
+            self.write(code)
+        else:
+            self.write('')
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -244,6 +374,7 @@ class Application(tornado.web.Application):
     def __init__(self):
         handlers = [(r"/", MainHandler), (r"/register", RegisterHandler), (r"/game", GameHandler),
                     (r"/state", StateHandler), (r"/stats", StatsHandler),
+                    (r"/admin", AdminHandler), (r"/admin/bot/([^/]+)", BotCodeHandler),
                     (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': "./static/"}), ]
         settings = {}
         super(Application, self).__init__(handlers, **settings)

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Admin Panel</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #fafafa; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        th { background: #4CAF50; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .btn { padding: 5px 10px; margin: 2px; cursor: pointer; border: none; border-radius: 3px; }
+        .delete { background: #f44336; color: white; }
+        .toggle { background: #ff9800; color: white; }
+        .edit { background: #2196F3; color: white; }
+        .reset { background: #9E9E9E; color: white; }
+        .disabled td { opacity: 0.5; }
+        .error-link { color: #f44336; cursor: pointer; text-decoration: underline; }
+        textarea { width: 100%; height: 300px; font-family: monospace; font-size: 13px; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); }
+        .modal-content { background: white; margin: 3% auto; padding: 20px; width: 80%; max-height: 85vh; overflow-y: auto; border-radius: 5px; }
+        .close { float: right; font-size: 28px; cursor: pointer; }
+        .panel { margin-bottom: 20px; padding: 15px; background: white; border: 1px solid #ddd; border-radius: 5px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .mode-sandbox { color: #ff9800; }
+        .mode-production { color: #f44336; }
+        .state-running { color: #4CAF50; }
+        .state-stop { color: #9E9E9E; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: white; }
+        .badge-ready { background: #4CAF50; }
+        .badge-waiting { background: #2196F3; }
+        .badge-disabled { background: #9E9E9E; }
+        pre { background: #f5f5f5; padding: 15px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <h1>Admin Panel</h1>
+
+    <div class="panel">
+        <div>
+            <strong>Mode:</strong>
+            <span class="{% if mode == 'sandbox' %}mode-sandbox{% else %}mode-production{% end %}">{{ mode }}</span>
+        </div>
+        <form method="post" style="display:inline;">
+            <input type="hidden" name="action" value="mode">
+            <input type="hidden" name="mode" value="{% if mode == 'sandbox' %}production{% else %}sandbox{% end %}">
+            <button class="btn toggle" onclick="return confirm('Switch to {% if mode == 'sandbox' %}production{% else %}sandbox{% end %}?')">
+                &rarr; {% if mode == 'sandbox' %}Production{% else %}Sandbox{% end %}
+            </button>
+        </form>
+        <div>
+            <strong>Game:</strong>
+            <span class="{% if game_state == 'running' %}state-running{% else %}state-stop{% end %}">{{ game_state }}</span>
+        </div>
+        <div>
+            <strong>Bots:</strong> {{ len(bots) }} total,
+            {{ len([b for b in bots if b['state'] == 'ready']) }} ready,
+            {{ len([b for b in bots if b['state'] == 'disabled']) }} disabled
+        </div>
+    </div>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Key</th>
+            <th>State</th>
+            <th>Code</th>
+            <th>Crashes / Errors</th>
+            <th>Actions</th>
+        </tr>
+        {% for bot in bots %}
+        <tr class="{% if bot['state'] == 'disabled' %}disabled{% end %}">
+            <td>{{ bot['id'] }}</td>
+            <td>{{ bot['name'] }}</td>
+            <td><code>{{ bot['key'] }}</code></td>
+            <td><span class="badge badge-{{ bot['state'] }}">{{ bot['state'] }}</span></td>
+            <td>{% if bot['has_code'] %}&check;{% else %}&cross;{% end %}</td>
+            <td>
+                {{ bot['crashes'] }} / {{ bot['errors'] }}
+                {% if bot['lastCrash'] %}
+                <br><a class="error-link" onclick="showError(this)" data-error="{{ bot['lastCrash'] }}">show error</a>
+                {% end %}
+            </td>
+            <td>
+                <button class="btn edit" onclick="editBot({{ bot['id'] }}, '{{ bot['name'] }}', '{{ bot['key'] }}')">Edit</button>
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="action" value="toggle">
+                    <input type="hidden" name="id" value="{{ bot['id'] }}">
+                    <button class="btn toggle">{% if bot['state'] == 'disabled' %}Enable{% else %}Disable{% end %}</button>
+                </form>
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="action" value="reset_stats">
+                    <input type="hidden" name="id" value="{{ bot['id'] }}">
+                    <button class="btn reset" onclick="return confirm('Reset stats?')">Reset</button>
+                </form>
+                <form method="post" style="display:inline">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" value="{{ bot['id'] }}">
+                    <button class="btn delete" onclick="return confirm('Delete?')">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% end %}
+    </table>
+
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('editModal').style.display='none'">&times;</span>
+            <h2>Edit Bot</h2>
+            <form method="post">
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="id" id="editId">
+                <label>Name: <input type="text" name="name" id="editName" style="width:300px"></label><br><br>
+                <label>Code:<br><textarea name="code" id="editCode"></textarea></label><br>
+                <button type="submit" class="btn edit">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('errorModal').style.display='none'">&times;</span>
+            <h2>Error Details</h2>
+            <pre id="errorText"></pre>
+        </div>
+    </div>
+
+    <script>
+        function editBot(id, name, key) {
+            document.getElementById('editId').value = id;
+            document.getElementById('editName').value = name;
+            document.getElementById('editCode').value = '...';
+            document.getElementById('editModal').style.display = 'block';
+            fetch('/admin/bot/' + key).then(function(r) { return r.text(); }).then(function(code) {
+                document.getElementById('editCode').value = code;
+            });
+        }
+        function showError(el) {
+            document.getElementById('errorText').textContent = el.getAttribute('data-error');
+            document.getElementById('errorModal').style.display = 'block';
+        }
+        window.onclick = function(e) {
+            if (e.target.classList.contains('modal')) e.target.style.display = 'none';
+        };
+    </script>
+</body>
+</html>
