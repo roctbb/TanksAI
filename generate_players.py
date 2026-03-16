@@ -1,9 +1,9 @@
-players = 14
-
 import sqlite3
 import string
 import random
 from server.config import db_path
+
+players = 14
 
 def generate_random_sequence():
     characters = string.ascii_uppercase + string.digits

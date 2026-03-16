@@ -77,6 +77,7 @@ def apply_damage(hit_player, damage, health, shield, choices, healthMap, x, y):
         damage -= absorbed
     health[hit_player] -= damage
     healthMap[x][y] -= damage
+    return damage
 
 
 def wrapper(func, x, y, field, rv):
@@ -397,9 +398,10 @@ def make_testing():
                     if mainMap[px][y] not in ('.', '@'):
                         hit_player = mainMap[px][y]
 
-                        apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
+                        actual = apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
 
-                        kills[player]+=1
+                        if actual > 0:
+                            kills[player]+=1
 
                         '''
                         print(player + " (" + str(health[player]) + ") hits " + str(hit_player) + " (" + str(
@@ -419,9 +421,10 @@ def make_testing():
                     if mainMap[px][y] not in ('.', '@'):
                         hit_player = mainMap[px][y]
 
-                        apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
+                        actual = apply_damage(hit_player, 1, health, shield, choices, healthMap, px, y)
 
-                        kills[player] += 1
+                        if actual > 0:
+                            kills[player] += 1
 
                         print(player + " ("+str(health[player])+") hits " + str(hit_player) + " (" + str(
                             health[hit_player]) + ")" + " [" + str(px) + " ," + str(py) + "] -> ["+str(px)+", "+str(y)+"] " + choices[player])
@@ -438,9 +441,10 @@ def make_testing():
                     if mainMap[x][py] not in ('.', '@'):
                         hit_player = mainMap[x][py]
 
-                        apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
+                        actual = apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
 
-                        kills[player] += 1
+                        if actual > 0:
+                            kills[player] += 1
 
                         print(player + " (" + str(health[player]) + ") hits " + str(hit_player) + " (" + str(
                             health[hit_player]) + ")" + " [" + str(px) + " ," + str(py) + "] -> [" + str(x) + ", " + str(
@@ -458,9 +462,10 @@ def make_testing():
                     if mainMap[x][py] not in ('.', '@'):
                         hit_player = mainMap[x][py]
 
-                        apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
+                        actual = apply_damage(hit_player, 1, health, shield, choices, healthMap, x, py)
 
-                        kills[player] += 1
+                        if actual > 0:
+                            kills[player] += 1
 
                         print(player + " (" + str(health[player]) + ") hits " + str(hit_player) + " (" + str(
                             health[hit_player]) + ")" + " [" + str(px) + " ," + str(py) + "] -> [" + str(x) + ", " + str(
@@ -495,8 +500,9 @@ def make_testing():
                         
                         if not blocked and mainMap[tx][ty] not in ('.', '@', '#'):
                             hit_player = mainMap[tx][ty]
-                            apply_damage(hit_player, 3, health, shield, choices, healthMap, tx, ty)
-                            kills[player] += 1
+                            actual = apply_damage(hit_player, 3, health, shield, choices, healthMap, tx, ty)
+                            if actual > 0:
+                                kills[player] += 1
                             c.execute("UPDATE game SET life = " + str(health[hit_player]) + ", shield = " + str(shield[hit_player]) + " WHERE key = ?", [hit_player])
                 
                 c.execute("UPDATE statistics SET kills = " + str(kills[player]) + " WHERE key = ?", [player])
