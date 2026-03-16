@@ -56,6 +56,11 @@
             {{ len([b for b in bots if b['state'] == 'ready']) }} ready,
             {{ len([b for b in bots if b['state'] == 'disabled']) }} disabled
         </div>
+        <form method="post" style="display:inline;">
+            <input type="hidden" name="action" value="register">
+            <input type="text" name="name" placeholder="Bot name" required style="padding:4px;">
+            <button class="btn edit">+ Register Bot</button>
+        </form>
     </div>
 
     <table>

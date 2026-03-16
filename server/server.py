@@ -98,6 +98,14 @@ class AdminHandler(tornado.web.RequestHandler):
             self.redirect('/admin')
             return
 
+        if action == 'register':
+            name = self.get_argument('name')
+            key = getKey(8)
+            c.execute("INSERT INTO players (name, key, state, code) VALUES (?,?,?,?)", [name, key, "waiting", None])
+            conn.commit()
+            self.write("Ключ для {}: {}".format(name, key))
+            return
+
         bot_id = self.get_argument('id')
 
         if action == 'delete':

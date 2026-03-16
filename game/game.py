@@ -89,7 +89,7 @@ def wrapper(func, x, y, field, rv):
         error_msg = traceback.format_exc()
         # Скрываем ключ игрока из traceback
         import re
-        error_msg = re.sub(r'bots/[A-Z0-9]+\.py', 'bots/bot.py', error_msg)
+        error_msg = re.sub(r'bots/bot\d+\.py', 'bots/bot.py', error_msg)
         rv['error'] = str(e) + " " + error_msg
 
 def make_testing():
@@ -117,14 +117,16 @@ def make_testing():
     #get bots
     #change to in game
     names = dict()
-    c.execute("SELECT key, name FROM players WHERE state = 'ready'")
+    c.execute("SELECT id, key, name FROM players WHERE state = 'ready'")
     result = c.fetchall()
     players = list()
+    bot_files = dict()
     print("CURRENT PLAYERS:")
     for string in result:
-        print(string[0]+" - "+string[1])
-        players.append(string[0])
-        names[string[0]]=string[1]
+        print(string[1]+" - "+string[2])
+        players.append(string[1])
+        names[string[1]]=string[2]
+        bot_files[string[1]] = "bot{}".format(string[0])
     print("")
     print("")
 
@@ -263,14 +265,14 @@ def make_testing():
             if not is_code_safe(code):
                 code = ""
                 print(code)
-            output_file = open("./bots/" + player + ".py", 'w')
+            output_file = open("./bots/" + bot_files[player] + ".py", 'w')
             output_file.write(code)
             output_file.close()
 
             lerror = ""
 
             try:
-                module = __import__(player, fromlist=["make_choice"])
+                module = __import__(bot_files[player], fromlist=["make_choice"])
                 module = imp.reload(module)
                 makeChoice = getattr(module, "make_choice")
                 print("Now running:" +player+" ("+names[player]+")")
