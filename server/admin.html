@@ -93,6 +93,11 @@
                     <input type="hidden" name="id" value="{{ bot['id'] }}">
                     <button class="btn toggle">{% if bot['state'] == 'disabled' %}Enable{% else %}Disable{% end %}</button>
                 </form>
+                <form method="post" style="display:inline" onsubmit="return rekeyBot(this)">
+                    <input type="hidden" name="action" value="rekey">
+                    <input type="hidden" name="id" value="{{ bot['id'] }}">
+                    <button class="btn reset" type="submit">Rekey</button>
+                </form>
                 <form method="post" style="display:inline">
                     <input type="hidden" name="action" value="reset_stats">
                     <input type="hidden" name="id" value="{{ bot['id'] }}">
@@ -143,6 +148,13 @@
         function showError(el) {
             document.getElementById('errorText').textContent = el.getAttribute('data-error');
             document.getElementById('errorModal').style.display = 'block';
+        }
+        function rekeyBot(form) {
+            if (!confirm('Перевыпустить ключ?')) return false;
+            fetch('/admin', { method: 'POST', body: new FormData(form) })
+                .then(function(r) { return r.text(); })
+                .then(function(t) { alert(t); location.reload(); });
+            return false;
         }
         window.onclick = function(e) {
             if (e.target.classList.contains('modal')) e.target.style.display = 'none';
