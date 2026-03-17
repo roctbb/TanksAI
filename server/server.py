@@ -126,6 +126,19 @@ class AdminHandler(tornado.web.RequestHandler):
             name = self.get_argument('name')
             code = self.get_argument('code')
             c.execute("UPDATE players SET name = ?, code = ?, state = 'ready' WHERE id = ?", [name, code, bot_id])
+        elif action == 'rekey':
+            new_key = getKey(8)
+            c.execute("SELECT key FROM players WHERE id = ?", [bot_id])
+            row = c.fetchone()
+            if row:
+                old_key = row[0]
+                c.execute("UPDATE players SET key = ? WHERE id = ?", [new_key, bot_id])
+                c.execute("UPDATE statistics SET key = ? WHERE key = ?", [new_key, old_key])
+                c.execute("UPDATE game SET key = ? WHERE key = ?", [new_key, old_key])
+                c.execute("UPDATE actions SET key = ? WHERE key = ?", [new_key, old_key])
+                conn.commit()
+                self.write("Новый ключ: {}".format(new_key))
+                return
         elif action == 'reset_stats':
             c.execute("SELECT key FROM players WHERE id = ?", [bot_id])
             row = c.fetchone()
