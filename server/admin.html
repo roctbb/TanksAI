@@ -77,7 +77,7 @@
         <tr class="{% if bot['state'] == 'disabled' %}disabled{% end %}">
             <td>{{ bot['id'] }}</td>
             <td>{{ bot['name'] }}</td>
-            <td><code>{{ bot['key'] }}</code></td>
+            <td><details><summary>показать</summary><code>{{ bot['key'] }}</code></details></td>
             <td><span class="badge badge-{{ bot['state'] }}">{{ bot['state'] }}</span></td>
             <td>{% if bot['has_code'] %}&check;{% else %}&cross;{% end %}</td>
             <td>
