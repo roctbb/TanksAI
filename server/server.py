@@ -186,8 +186,8 @@ class MainHandler(tornado.web.RequestHandler):
                 conn.commit()
             else:
                 if player[3] == "waiting" or settings['game_state'] != "running":
-                    c.execute("UPDATE players SET state = ?", ["ready"])
-                    c.execute("UPDATE players SET code = ?", [file['body']])
+                    c.execute("UPDATE players SET code = ? WHERE key = ?", [file['body'], player[2]])
+                    c.execute("UPDATE players SET state = ? WHERE key = ?", ["ready", player[2]])
                     conn.commit()
                 else:
                     self.write("<script>alert('Игра уже запущена!');location.href=location.href;</script>")
